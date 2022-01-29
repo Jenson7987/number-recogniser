@@ -44,7 +44,6 @@ def bytes_to_matrix(image_bytes):
     raw_image = Image.open(io.BytesIO(image_bytes))
     image = raw_image.convert("L")
     image = image.resize((28, 28), Image.LANCZOS)
-    image.save("J:/Projects/imageToSave.png")
     greyscale_matrix = np.array(image)
     return greyscale_matrix
 
