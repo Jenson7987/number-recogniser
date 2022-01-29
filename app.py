@@ -22,7 +22,7 @@ training_data, validation_data, test_data = mnist_loader.load_data_wrapper()
 logger.info("Loaded data.")
 net = network.Network([784, 30, 10])
 logger.info("Training neural network...")
-net.SGD(training_data, 30, 10, 3.0)
+net.SGD(training_data, 1, 10, 3.0)
 logger.info("Trained neural network.")
 
 
