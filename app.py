@@ -35,16 +35,11 @@ def normalise_matrix(matrix):
 
 
 def create_app() -> Flask:
-    flask = Flask(__name__)
-    CORS(flask)
-    flask.config["CORS_HEADERS"] = "Content-Type"
-    return flask
-
-
-if __name__ == "__main__":
     logger.info("Starting app...")
-    app = create_app()
 
+    app = Flask(__name__)
+    CORS(app)
+    app.config["CORS_HEADERS"] = "Content-Type"
     path = os.path.dirname(__file__)
     net = NeuralNet.load(path + "/epoch_27.pickle")
 
@@ -60,4 +55,9 @@ if __name__ == "__main__":
         output = net.classify(normalised_matrix)
         return jsonify({str(i): round(output[i] * 100, 1) for i in range(10)})
 
-    app.run()
+    return app
+
+
+if __name__ == "__main__":
+    application = create_app()
+    application.run()
