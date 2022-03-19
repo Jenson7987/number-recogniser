@@ -1,34 +1,18 @@
+import os
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-from random import randint
 import base64
 import logging
 from PIL import Image
-import numpy as np
 import io
-import mnist_loader
-import network
+from neural_net import NeuralNet
 
 
 logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-cors = CORS(app)
-app.config['CORS_HEADERS'] = 'Content-Type'
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger.info("Loading data...")
-training_data, validation_data, test_data = mnist_loader.load_data_wrapper()
-logger.info("Loaded data.")
-net = network.Network([784, 30, 10])
-logger.info("Training neural network...")
-net.SGD(training_data, 1, 10, 3.0)
-logger.info("Trained neural network.")
-
-
-@app.route("/")
-def index():
-    return "Hello World!"
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 def normalise_pixel(x):
@@ -36,43 +20,44 @@ def normalise_pixel(x):
     return output if output >= 0.05 else 0
 
 
-def random_confidence():
-    return randint(0, 100)
-
-
 def bytes_to_matrix(image_bytes):
     raw_image = Image.open(io.BytesIO(image_bytes))
     image = raw_image.convert("L")
     image = image.resize((28, 28), Image.LANCZOS)
-    greyscale_matrix = np.array(image)
-    return greyscale_matrix
+    return list(image.getdata())
 
 
-@app.route("/recognise-number", methods=["POST"])
-@cross_origin()
-def recognise_number():
-    data = request.json
-    image = data['image']
-    image = image[image.find(',') + 1:]
-    image_bytes = bytes(image, "utf-8")
-    matrix = bytes_to_matrix(base64.decodebytes(image_bytes))
-    normalised_matrix = np.vectorize(normalise_pixel, otypes=[float])(matrix)
-    normalised_matrix.resize((784, 1))
-    output = net.feedforward(normalised_matrix)
-    return jsonify({
-        '0': int(output[0][0] * 100),
-        '1': int(output[1][0] * 100),
-        '2': int(output[2][0] * 100),
-        '3': int(output[3][0] * 100),
-        '4': int(output[4][0] * 100),
-        '5': int(output[5][0] * 100),
-        '6': int(output[6][0] * 100),
-        '7': int(output[7][0] * 100),
-        '8': int(output[8][0] * 100),
-        '9': int(output[9][0] * 100),
-    })
+def normalise_matrix(matrix):
+    result = []
+    for pixel in matrix:
+        result.append(normalise_pixel(pixel))
+    return result
 
 
-if __name__ == '__main__':
+def create_app() -> Flask:
+    flask = Flask(__name__)
+    CORS(flask)
+    flask.config["CORS_HEADERS"] = "Content-Type"
+    return flask
+
+
+if __name__ == "__main__":
     logger.info("Starting app...")
+    app = create_app()
+
+    path = os.path.dirname(__file__)
+    net = NeuralNet.load(path + "/epoch_27.pickle")
+
+    @app.route("/recognise-number", methods=["POST"])
+    @cross_origin()
+    def recognise_number():
+        data = request.json
+        image = data["image"]
+        image = image[image.find(",") + 1 :]
+        image_bytes = bytes(image, "utf-8")
+        matrix = bytes_to_matrix(base64.decodebytes(image_bytes))
+        normalised_matrix = normalise_matrix(matrix)
+        output = net.classify(normalised_matrix)
+        return jsonify({str(i): round(output[i] * 100, 1) for i in range(10)})
+
     app.run()
