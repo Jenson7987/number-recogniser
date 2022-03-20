@@ -1,96 +1,61 @@
 """
-mnist_loader
-~~~~~~~~~~~~
+Loads the MNIST handwritten digits image data.
 
-A library to load the MNIST image data.  For details of the data
-structures that are returned, see the doc strings for ``load_data``
-and ``load_data_wrapper``.  In practice, ``load_data_wrapper`` is the
-function usually called by our neural network code.
+Copyright (c) 2022 by Jenson Wong
 """
-
-# Libraries
-# Standard library
-import pickle
-import gzip
-from os.path import abspath, dirname
-
-# Third-party libraries
-import numpy as np
+from gzip import open
+from logging import getLogger
+from pickle import load
 
 from neural_net import TrainingSample
 
-
-def load_data():
-    """Return the MNIST data as a tuple containing the training data,
-    the validation data, and the test data.
-
-    The ``training_data`` is returned as a tuple with two entries.
-    The first entry contains the actual training images.  This is a
-    numpy ndarray with 50,000 entries.  Each entry is, in turn, a
-    numpy ndarray with 784 values, representing the 28 * 28 = 784
-    pixels in a single MNIST image.
-
-    The second entry in the ``training_data`` tuple is a numpy ndarray
-    containing 50,000 entries.  Those entries are just the digit
-    values (0...9) for the corresponding images contained in the first
-    entry of the tuple.
-
-    The ``validation_data`` and ``test_data`` are similar, except
-    each contains only 10,000 images.
-
-    This is a nice data format, but for use in neural networks it's
-    helpful to modify the format of the ``training_data`` a little.
-    That's done in the wrapper function ``load_data_wrapper()``, see
-    below.
-    """
-
-    f = gzip.open(f"{dirname(abspath(__file__))}/mnist.pkl.gz", "rb")
-    training_data, validation_data, test_data = pickle.load(f, encoding="latin1")
-    f.close()
-    return training_data, validation_data, test_data
+logger = getLogger(__name__)
 
 
-def load_data_wrapper():
-    """Return a tuple containing ``(training_data, validation_data,
-    test_data)``. Based on ``load_data``, but the format is more
-    convenient for use in our implementation of neural networks.
+class MnistDataLoader:
+    def __init__(self, pickled_mnist_gzip_file_path: str) -> None:
+        self._pickled_mnist_gzip_file_path = pickled_mnist_gzip_file_path
+        self._training_data = []
+        self._validation_data = []
+        self._test_data = []
 
-    In particular, ``training_data`` is a list containing 50,000
-    2-tuples ``(x, y)``.  ``x`` is a 784-dimensional numpy.ndarray
-    containing the input image.  ``y`` is a 10-dimensional
-    numpy.ndarray representing the unit vector corresponding to the
-    correct digit for ``x``.
+    def load(self) -> "MnistDataLoader":
+        """Loads MNIST data stored as a Python pickle gzip file, originally from:
+        https://github.com/mnielsen/neural-networks-and-deep-learning/blob/master/data/mnist.pkl.gz
 
-    ``validation_data`` and ``test_data`` are lists containing 10,000
-    2-tuples ``(x, y)``.  In each case, ``x`` is a 784-dimensional
-    numpy.ndarry containing the input image, and ``y`` is the
-    corresponding classification, i.e., the digit values (integers)
-    corresponding to ``x``.
+        'training_data' consists of a tuple with two entries:
+        - a numpy ndarray of 50,000 images of 784 pixels (28 * 28)
+        - a numpy ndarray of 50,000 values, between 0 and 9, indicating the image digit
 
-    Obviously, this means we're using slightly different formats for
-    the training data and the validation / test data.  These formats
-    turn out to be the most convenient for use in our neural network
-    code."""
-    tr_d, va_d, te_d = load_data()
-    training_inputs = [np.reshape(x, (1, 784)).tolist() for x in tr_d[0]]
-    training_results = [vectorized_result(y) for y in tr_d[1]]
-    training_data = [
-        TrainingSample(i[0], r) for i, r in zip(training_inputs, training_results)
-    ]
-    validation_inputs = [np.reshape(x, (1, 784)).tolist() for x in va_d[0]]
-    validation_data = [
-        TrainingSample(i[0], r) for i, r in zip(validation_inputs, va_d[1])
-    ]
-    test_inputs = [np.reshape(x, (1, 784)).tolist() for x in te_d[0]]
-    test_data = [TrainingSample(i[0], r) for i, r in zip(test_inputs, te_d[1])]
-    return training_data, validation_data, test_data
+        'validation_data' and 'test_data' are similar but contain 10,000 images each.
+        """
+        logger.info("Loading MNIST data: %s", self._pickled_mnist_gzip_file_path)
+        with open(self._pickled_mnist_gzip_file_path, "rb") as file:
+            training_data, validation_data, test_data = load(file, encoding="latin1")
 
+        training_inputs = [d.tolist() for d in training_data[0]]
+        training_results = [self.normalise_result(y) for y in training_data[1]]
+        self._training_data = [TrainingSample(i, r) for i, r in zip(training_inputs, training_results)]
 
-def vectorized_result(j):
-    """Return a 10-dimensional unit vector with a 1.0 in the jth
-    position and zeroes elsewhere.  This is used to convert a digit
-    (0...9) into a corresponding desired output from the neural
-    network."""
-    e = [0] * 10
-    e[j] = 1.0
-    return e
+        validation_inputs = [d.tolist() for d in validation_data[0]]
+        self._validation_data = [TrainingSample(i, r) for i, r in zip(validation_inputs, validation_data[1])]
+
+        test_inputs = [d.tolist() for d in test_data[0]]
+        self._test_data = [TrainingSample(i, r) for i, r in zip(test_inputs, test_data[1])]
+        logger.info("Finished loading MNIST data: %s", self._pickled_mnist_gzip_file_path)
+        return self
+
+    def get_training_data(self) -> list[TrainingSample]:
+        return self._training_data
+
+    def get_validation_data(self) -> list[TrainingSample]:
+        return self._validation_data
+
+    def get_test_data(self) -> list[TrainingSample]:
+        return self._test_data
+
+    @staticmethod
+    def normalise_result(n: int) -> list[float]:
+        result = [0.0] * 10
+        result[n] = 1.0
+        return result
