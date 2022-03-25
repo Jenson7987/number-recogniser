@@ -3,6 +3,7 @@ Loads the MNIST handwritten digits image data.
 
 Copyright (c) 2022 by Jenson Wong
 """
+from dataclasses import dataclass
 from gzip import open
 from logging import getLogger
 from pickle import load
@@ -10,6 +11,12 @@ from pickle import load
 from neural_net import TrainingSample
 
 logger = getLogger(__name__)
+
+
+@dataclass
+class TrainingDigit:
+    input: list[float]
+    output: int
 
 
 class MnistDataLoader:
@@ -41,7 +48,7 @@ class MnistDataLoader:
         self._validation_data = [TrainingSample(i, r) for i, r in zip(validation_inputs, validation_data[1])]
 
         test_inputs = [d.tolist() for d in test_data[0]]
-        self._test_data = [TrainingSample(i, r) for i, r in zip(test_inputs, test_data[1])]
+        self._test_data = [TrainingDigit(i, r) for i, r in zip(test_inputs, test_data[1])]
         logger.info("Finished loading MNIST data: %s", self._pickled_mnist_gzip_file_path)
         return self
 
@@ -51,7 +58,7 @@ class MnistDataLoader:
     def get_validation_data(self) -> list[TrainingSample]:
         return self._validation_data
 
-    def get_test_data(self) -> list[TrainingSample]:
+    def get_test_data(self) -> list[TrainingDigit]:
         return self._test_data
 
     @staticmethod
