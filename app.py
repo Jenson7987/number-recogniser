@@ -6,6 +6,7 @@ Copyright (c) 2022 by Jenson Wong
 from base64 import decodebytes
 from io import BytesIO
 from logging import basicConfig, getLogger, INFO
+from math import isqrt
 from os.path import abspath, dirname
 
 from flask import Flask, request, jsonify
@@ -37,6 +38,39 @@ def convert_to_normalised_image(image_base64):
     return [normalise_pixel(pixel) for pixel in resized_image.getdata()]
 
 
+def centre_image(image: list[float]) -> list[float]:
+    min_x = None
+    max_x = None
+    rows = isqrt(len(image))
+    columns = rows
+
+    for row in range(rows):
+        row_start_index = row * columns
+        for x in range(columns):
+            pixel_value = image[row_start_index + x]
+            if pixel_value != 0:
+                if min_x is None or x < min_x:
+                    min_x = x
+                if max_x is None or x > max_x:
+                    max_x = x
+
+    digit_centre_x = (min_x + max_x) // 2
+    canvas_centre_x = columns // 2
+    x_shift = canvas_centre_x - digit_centre_x
+
+    centred_image = [0.0] * len(image)
+    for row in range(rows):
+        row_start_index: int = row * columns
+        for x in range(columns):
+            pixel_value = image[row_start_index + x]
+            shifted_x = x + x_shift
+            if 0 <= shifted_x < columns:
+                index = row_start_index + shifted_x
+                centred_image[index] = pixel_value
+
+    return centred_image
+
+
 def create_app():
     logger.info("Starting application...")
     app = Flask(__name__)
@@ -51,7 +85,8 @@ def create_app():
         image = request.json["image"]  # Base64-encoded PNG image
         image_base64 = image[image.find(",") + 1 :]
         input_image = convert_to_normalised_image(image_base64)
-        output = neural_network.classify(input_image)
+        centred_image = centre_image(input_image)
+        output = neural_network.classify(centred_image)
         return jsonify({str(i): round(output[i] * 100, 1) for i in range(10)})
 
     return app
